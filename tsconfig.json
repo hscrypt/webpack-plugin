@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "outDir": "build/",
+    "declaration": true,
+    "target": "es5",
+    "module": "UMD",
+    "moduleResolution": "node",
+    "sourceMap": true,
+    "experimentalDecorators": true,
+    "lib": ["dom", "es2015", "es2016"],
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "node",
+    "noEmitHelpers": true,
+    "importHelpers": true,
+    "strict": true,
+    "downlevelIteration": true,
+    "noImplicitReturns": true,
+    "esModuleInterop": true,
+  },
+  "exclude": [
+    "node_modules",
+    "build"
+  ]
+}
