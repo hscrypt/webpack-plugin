@@ -110,7 +110,13 @@ export default class HscryptPlugin {
 
     protected encrypt(source: string) {
         let { encryptedPath } = this
-        encryptedPath = this.config.path ? `${this.config.path}/${encryptedPath}` : encryptedPath
+        const dir = this.config.path
+        if (dir) {
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true })
+            }
+            encryptedPath = `${dir}/${encryptedPath}`
+        }
         this.log(`Writing source from ${this.filename} to ${encryptedPath}`)
         fs.writeFileSync(encryptedPath, source)
     }
