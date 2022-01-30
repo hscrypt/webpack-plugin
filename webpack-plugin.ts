@@ -9,21 +9,7 @@ export function is(filenameExtension: string) {
     return (fileName: string) => reg.test(fileName)
 }
 
-// type HTMLWebpackPlugin = any
-
 export const isJS = is('js')
-
-// interface BATGD {
-//     assets: {
-//         publicPath: string;
-//         js: Array<string>;
-//         css: Array<string>;
-//         favicon?: string;
-//         manifest?: string;
-//     };
-//     outputName: string;
-//     plugin: HTMLWebpackPlugin;
-// }
 
 interface BeforeAssetTagGenerationData {
     outputName: string
@@ -64,7 +50,6 @@ export interface Config {
     path?: string
     debug?: boolean | number
     replace?: ReplaceConfig
-    // HTMLWebpackPlugin: HTMLWebpackPlugin
 }
 
 export interface FileCache {
@@ -90,10 +75,9 @@ export default class HscryptPlugin {
     }
 
     protected log(...args: any[]) {
-        console.log("log:", ...args)
-        // if (this.config.debug) {
-        //     console.log(...args)
-        // }
+        if (this.config.debug) {
+            console.log(...args)
+        }
     }
 
     protected get filename() {
@@ -241,7 +225,6 @@ export default class HscryptPlugin {
     }
 
     apply(compiler: Compiler) {
-        console.log("applying…")
         compiler.hooks.compilation.tap(
             `hscrypt_compilation`,
             compilation => {
@@ -249,33 +232,18 @@ export default class HscryptPlugin {
                     compilation,
                 )
 
-                // console.log("compilation...", compilation)
-                // console.log("******\n\n\n")
-                console.log("compilation...")
-
                 hooks.beforeAssetTagGeneration.tap(
                     `hscrypt_beforeAssetTagGeneration`,
                     data => {
-                        console.log("beforeAssetTagGeneration…")
                         this.prepare(compilation)
                         this.prepareScript(data)
                     },
                 )
 
                 hooks.beforeEmit.tap(`hscrypt_beforeEmit`, data => {
-                    console.log("beforeEmit…")
                     this.process(data)
                 })
             },
         )
-
-        // if (typeof this.config.debug == 'number' && this.config.debug > 1) {
-        //     compiler.hooks.done.tap(
-        //         'hscrypt_rm_script',
-        //         (stats) => {
-        //             this.log("stats:", stats)
-        //         }
-        //     )
-        // }
     }
 }
