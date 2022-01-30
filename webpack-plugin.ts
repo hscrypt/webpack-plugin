@@ -1,7 +1,7 @@
 import { escapeRegExp } from 'lodash'
 import { SyncHook } from 'tapable'
 import { Compiler } from 'webpack'
-import HTMLWebpackPlugin = require("html-webpack-plugin")
+import HTMLWebpackPlugin from "html-webpack-plugin"
 import * as fs from "fs";
 
 export function is(filenameExtension: string) {
@@ -9,13 +9,27 @@ export function is(filenameExtension: string) {
     return (fileName: string) => reg.test(fileName)
 }
 
+// type HTMLWebpackPlugin = any
+
 export const isJS = is('js')
+
+// interface BATGD {
+//     assets: {
+//         publicPath: string;
+//         js: Array<string>;
+//         css: Array<string>;
+//         favicon?: string;
+//         manifest?: string;
+//     };
+//     outputName: string;
+//     plugin: HTMLWebpackPlugin;
+// }
 
 interface BeforeAssetTagGenerationData {
     outputName: string
     assets: {
         publicPath: string
-        js: string[]
+        js: Array<string>
     }
     plugin: HTMLWebpackPlugin
 }
@@ -33,13 +47,12 @@ interface HTMLWebpackPluginHooks {
 
 type Script = string
 
+// TODO: parameterize this as `{head,body} x {beginning,end}`, or as an element id or selector
 export interface ReplaceConfig {
     position?: 'before' | 'after'
     removeTarget?: boolean
     target: string
 }
-
-// export type ScriptTagFactory = (params: { script: string }) => string
 
 export const DEFAULT_REPLACE_CONFIG: ReplaceConfig = {
     target: '</head>',
@@ -49,14 +62,13 @@ export interface Config {
     filename: string,
     hscrypt: string,
     path?: string
-    debug?: boolean
-    // filter?(fileName: string): boolean
+    debug?: boolean | number
     replace?: ReplaceConfig
-    // scriptTagFactory?: ScriptTagFactory
+    // HTMLWebpackPlugin: HTMLWebpackPlugin
 }
 
 export interface FileCache {
-    [fileName: string]: string // file content
+    [fileName: string]: string  // file content
 }
 
 interface Asset {
@@ -73,12 +85,15 @@ export default class HscryptPlugin {
     private scriptMap: Map<HTMLWebpackPlugin, Script[]> = new Map()
     protected scriptCache: FileCache = {}
 
-    constructor(protected readonly config: Config) {}
+    constructor(protected readonly config: Config) {
+        console.log("hscrypt webpack-plugin constructor")
+    }
 
     protected log(...args: any[]) {
-        if (this.config.debug) {
-            console.log(...args)
-        }
+        console.log("log:", ...args)
+        // if (this.config.debug) {
+        //     console.log(...args)
+        // }
     }
 
     protected get filename() {
@@ -220,34 +235,41 @@ export default class HscryptPlugin {
     }
 
     apply(compiler: Compiler) {
+        console.log("applying…")
         compiler.hooks.compilation.tap(
             `hscrypt_compilation`,
-            (compilation) => {
+            compilation => {
                 const hooks: HTMLWebpackPluginHooks = (HTMLWebpackPlugin as any).getHooks(
                     compilation,
                 )
 
+                // console.log("compilation...", compilation)
+                // console.log("******\n\n\n")
+                console.log("compilation...")
+
                 hooks.beforeAssetTagGeneration.tap(
                     `hscrypt_beforeAssetTagGeneration`,
-                    (data) => {
+                    data => {
+                        console.log("beforeAssetTagGeneration…")
                         this.prepare(compilation)
                         this.prepareScript(data)
                     },
                 )
 
-                hooks.beforeEmit.tap(`hscrypt_beforeEmit`, (data) => {
+                hooks.beforeEmit.tap(`hscrypt_beforeEmit`, data => {
+                    console.log("beforeEmit…")
                     this.process(data)
                 })
             },
         )
 
-        if (this.config.debug) {
-            compiler.hooks.done.tap(
-                'hscrypt_rm_script',
-                (stats) => {
-                    this.log("stats:", stats)
-                }
-            )
-        }
+        // if (typeof this.config.debug == 'number' && this.config.debug > 1) {
+        //     compiler.hooks.done.tap(
+        //         'hscrypt_rm_script',
+        //         (stats) => {
+        //             this.log("stats:", stats)
+        //         }
+        //     )
+        // }
     }
 }
