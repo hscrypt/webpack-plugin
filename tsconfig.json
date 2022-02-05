@@ -1,22 +1,12 @@
 {
   "compilerOptions": {
-    "outDir": "dist",
+    "outDir": "build",
     "declaration": true,
-    "target": "es6",
+    "noImplicitAny": true,
     "module": "commonjs",
-    "moduleResolution": "node",
     "sourceMap": true,
-    "experimentalDecorators": true,
-    "lib": ["es2015", "es2016"],
-    "allowSyntheticDefaultImports": true,
-    "noEmitHelpers": true,
-    "importHelpers": true,
-    "strict": true,
-    "downlevelIteration": true,
-    "noImplicitReturns": true,
-    "esModuleInterop": true,
-  },
-  "exclude": [
-    "node_modules"
-  ]
+    "target": "es5",
+    "allowJs": true,
+    "moduleResolution": "node"
+  }
 }

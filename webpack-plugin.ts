@@ -1,8 +1,9 @@
 import { escapeRegExp } from 'lodash'
 import { SyncHook } from 'tapable'
-import { Compiler } from 'webpack'
-import HTMLWebpackPlugin from "html-webpack-plugin"
+import { Compiler, Compilation } from 'webpack'
+import * as HTMLWebpackPlugin from "html-webpack-plugin"
 import * as fs from "fs";
+import * as hscrypt from 'hscrypt';
 
 export function is(filenameExtension: string) {
     const reg = new RegExp(`\.${filenameExtension}$`)
@@ -31,7 +32,7 @@ interface HTMLWebpackPluginHooks {
     beforeEmit: SyncHook<BeforeEmitData>
 }
 
-type Script = string
+type Source = string | Buffer
 
 // TODO: parameterize this as `{head,body} x {beginning,end}`, or as an element id or selector
 export interface ReplaceConfig {
@@ -46,33 +47,24 @@ export const DEFAULT_REPLACE_CONFIG: ReplaceConfig = {
 
 export interface Config {
     filename: string,
-    hscrypt: string,
+    pswd: string,
+    hscrypt?: string,
     path?: string
     debug?: boolean | number
     replace?: ReplaceConfig
+    iterations?: number
 }
 
 export interface FileCache {
-    [fileName: string]: string  // file content
-}
-
-interface Asset {
-    source(): string
-    size(): number
-}
-
-interface Compilation {
-    assets: { [key: string]: Asset }
+    [filename: string]: Source  // file content
 }
 
 export default class HscryptPlugin {
     // Using object reference to distinguish styles for multiple files
-    private scriptMap: Map<HTMLWebpackPlugin, Script[]> = new Map()
+    private scriptMap: Map<HTMLWebpackPlugin, Source[]> = new Map()
     protected scriptCache: FileCache = {}
 
-    constructor(protected readonly config: Config) {
-        console.log("hscrypt webpack-plugin constructor")
-    }
+    constructor(protected readonly config: Config) {}
 
     protected log(...args: any[]) {
         if (this.config.debug) {
@@ -92,7 +84,11 @@ export default class HscryptPlugin {
         return `${this.filename}.gpg`
     }
 
-    protected encrypt(source: string) {
+    protected encrypt({ source, pswd, iterations, }: {
+        source: Source
+        pswd: string
+        iterations?: number
+    }) {
         let { encryptedPath } = this
         const dir = this.config.path
         if (dir) {
@@ -101,8 +97,10 @@ export default class HscryptPlugin {
             }
             encryptedPath = `${dir}/${encryptedPath}`
         }
+        this.log(`Calling encrypt: ${iterations} iterations`)
+        const encrypted = hscrypt.encrypt({ source, pswd, iterations, })
         this.log(`Writing source from ${this.filename} to ${encryptedPath}`)
-        fs.writeFileSync(encryptedPath, source)
+        fs.writeFileSync(encryptedPath, encrypted)
     }
 
     protected prepare({ assets }: Compilation) {
@@ -111,7 +109,11 @@ export default class HscryptPlugin {
             if (isJS(filename) && this.shouldReplace(filename)) {
                 const source = assets[filename].source()
                 this.scriptCache[filename] = source
-                this.encrypt(source)
+                this.encrypt({
+                    source,
+                    pswd: this.config.pswd,
+                    iterations: this.config.iterations,
+                })
                 delete assets[filename]
             }
         })
@@ -125,7 +127,7 @@ export default class HscryptPlugin {
             script: string
             publicPath: string
         }
-    ): string | undefined {
+    ): Source | undefined {
         this.log(`getScript(${script}, ${publicPath})`)
         // Link pattern: publicPath + fileName + '?' + hash
         const filename = script
@@ -153,18 +155,26 @@ export default class HscryptPlugin {
         {
             html,
             htmlFileName,
+            iterations,
         }: {
             html: string
             htmlFileName: string
+            iterations?: number
         }
     ) {
-        const hscryptTag = `<script type="module" src="${this.config.hscrypt}"></script>`
-        const injectTag = `<script type="module">window.onload = () => hscrypt.inject('${this.encryptedPath}')</script>`
-        const replaceValues = [
-            hscryptTag,
+        const hscryptTag = this.config.hscrypt ? [`<script type="module" src="${this.config.hscrypt}"></script>`] : []
+        let args = [
+            `'${this.encryptedPath}'`,
+            `window.location.hash.substring(1)`,
+        ]
+        if (iterations) {
+            args.push(iterations.toString())
+        }
+        const injectTag = `<script type="module">window.onload = () => hscrypt.inject(${args.join(', ')})</script>`
+        const replaceValues = hscryptTag.concat([
             injectTag,
             this.replaceConfig.target,
-        ]
+        ])
 
         if (html.indexOf(this.replaceConfig.target) === -1) {
             throw new Error(
@@ -172,7 +182,7 @@ export default class HscryptPlugin {
             )
         }
 
-        return html.replace(this.replaceConfig.target, replaceValues.join(''))
+        return html.replace(this.replaceConfig.target, replaceValues.join('\n\t'))
     }
 
     private prepareScript(data: BeforeAssetTagGenerationData) {
@@ -197,7 +207,7 @@ export default class HscryptPlugin {
                 } else {
                     this.scriptMap.set(data.plugin, [source])
                 }
-                const scriptIdx = data.assets.js.indexOf(source)
+                const scriptIdx = data.assets.js.indexOf(script)
                 // prevent generate <script /> tag
                 if (scriptIdx !== -1) {
                     data.assets.js.splice(scriptIdx, 1)
@@ -212,12 +222,14 @@ export default class HscryptPlugin {
         if (data.outputName == 'index.html') {
             const sources = this.scriptMap.get(data.plugin) || []
 
-            sources.forEach(source => {
-                // TODO: script unused
+            sources.forEach(() => {
+                // TODO: `source` unused; assumed to just be adding this.config.filename; should check/verify/simplify
+                //  this
                 this.log(`process script; html before:\n${data.html}`)
                 data.html = this.addScript({
                     html: data.html,
                     htmlFileName: data.outputName,
+                    iterations: this.config.iterations,
                 })
                 this.log(`process script; html after:\n${data.html}`)
             })
@@ -228,6 +240,7 @@ export default class HscryptPlugin {
         compiler.hooks.compilation.tap(
             `hscrypt_compilation`,
             compilation => {
+                this.log("COMPILATION!")
                 const hooks: HTMLWebpackPluginHooks = (HTMLWebpackPlugin as any).getHooks(
                     compilation,
                 )
