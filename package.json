@@ -1,6 +1,6 @@
 {
   "name": "hscrypt-webpack-plugin",
-  "version": "0.0.2-rc.3",
+  "version": "0.0.2",
   "main": "build/webpack-plugin.js",
   "types": "build/webpack-plugin.d.ts",
   "dependencies": {
