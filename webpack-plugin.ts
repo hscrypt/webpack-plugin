@@ -81,7 +81,7 @@ export default class HscryptPlugin {
     }
 
     protected get encryptedPath(): string {
-        return `${this.filename}.gpg`
+        return `${this.filename}.encrypted`
     }
 
     protected encrypt({ source, pswd, iterations, }: {
