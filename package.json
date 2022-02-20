@@ -7,7 +7,6 @@
   "dependencies": {
     "hscrypt": "^0.0.3-rc.2",
     "lodash": "^4.17.15",
-    "node-fetch-commonjs": "^3.1.1",
     "tslib": "^2.3.1"
   },
   "devDependencies": {

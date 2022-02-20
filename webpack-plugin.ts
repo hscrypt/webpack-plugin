@@ -5,7 +5,6 @@ import * as HTMLWebpackPlugin from "html-webpack-plugin"
 import * as fs from "fs";
 import * as path from "path";
 import * as hscrypt from 'hscrypt';
-const fetch = require('node-fetch-commonjs');
 
 export function is(filenameExtension: string) {
     const reg = new RegExp(`\.${filenameExtension}$`)
@@ -47,11 +46,8 @@ export const DEFAULT_REPLACE_CONFIG: ReplaceConfig = {
     target: '</head>',
 }
 
-export const HSCRYPT_VERSION = JSON.parse(fs.readFileSync('../node_modules/hscrypt/package.json').toString()).version
-
 export const DEFAULT_OUT_FILENAME = 'index.html'
-export const DEFAULT_HSCRYPT = `https://raw.githubusercontent.com/hscrypt/js/v${HSCRYPT_VERSION}/dist/src/hscrypt.mjs`
-export const DEFAULT_HSCRYPT_SRC = './hscrypt.mjs'
+export const DEFAULT_HSCRYPT_SRC = '../node_modules/hscrypt/dist/src/hscrypt.mjs'
 export const DEFAULT_INJECT_CONFIG_VAR = 'HSCRYPT_CONFIG'
 
 export interface Config {
@@ -110,9 +106,6 @@ export default class HscryptPlugin {
         return this.config.outFilename || DEFAULT_OUT_FILENAME
     }
 
-    protected get hscrypt() {
-        return this.config.hscrypt || DEFAULT_HSCRYPT
-    }
     protected get hscryptSrc() {
         return this.config.hscryptSrc || DEFAULT_HSCRYPT_SRC
     }
@@ -287,16 +280,9 @@ export default class HscryptPlugin {
 
             const dst = path.join(outputDir, this.hscryptSrc)
             if (fs.existsSync(dst)) {
-                this.log(`Already found ${dst}`)
+                this.log(`Found hscrypt.mjs at ${dst}`)
             } else {
-                this.log(`Fetching ${this.hscrypt}`)
-                // TODO: await?
-                fetch(this.hscrypt)
-                    .then((response: any) => response.text())
-                    .then((source: any) => {
-                        fs.writeFileSync(dst, source)
-                        this.log(`Wrote ${dst}`)
-                    })
+                throw new Error(`Couldn't find hscrypt.mjs at ${dst}`)
             }
         }
     }
