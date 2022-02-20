@@ -49,17 +49,25 @@ export const DEFAULT_REPLACE_CONFIG: ReplaceConfig = {
 export const DEFAULT_OUT_FILENAME = 'index.html'
 export const DEFAULT_HSCRYPT = 'https://raw.githubusercontent.com/hscrypt/js/5782bb0d93d7c8c50e3c8d001a7870a8d545fd8f/dist/src/hscrypt.mjs'
 export const DEFAULT_HSCRYPT_SRC = './hscrypt.mjs'
+export const DEFAULT_INJECT_CONFIG_VAR = 'HSCRYPT_CONFIG'
 
 export interface Config {
-    filename: string
-    pswd: string
-    hscrypt?: string
-    hscryptSrc?: string
-    path?: string
-    debug?: boolean | number
-    replace?: ReplaceConfig
-    iterations?: number
-    outFilename?: string
+    [key: string]: any
+    filename: string            // JS bundle to encrypt/inject/decrypt
+    pswd: string                // Encryption/Decryption key; provided to the plugin in webpack.config.js at build time, and by users as a URL "hash" at page load time
+    hscrypt?: string            // If an `hscrypt.mjs` isn't found at `hscryptSrc`, fetch one from this URL
+    hscryptSrc?: string         // Look for `hscrypt.mjs` locally at this path
+    path?: string               // Output directory to look for `filename` in (e.g. `dist`)
+    debug?: boolean | number    // Toggle debug logging
+    replace?: ReplaceConfig     // Where to inject the hscrypt "injection" <script> tag (default: just before "</head>"
+    iterations?: number         // PBKDF2 iterations (when generating decryption key from password); default: 10_000 (cf. `hscrypt.utils.DEFAULT_ITERATIONS`)
+    outFilename?: string        // Override output (encrypted) filename (default: `${filename}.encrypted`)
+    cache?: boolean             // Cache the (post-PBKDF2) decryption key in `localStorage`, for faster subsequent page loads
+    missingKeyCb?: string       // Global name of a callback (e.g. `MyApp.myMissingKeyCb`) of type ({ msg: string }) => void; see `hscrypt.MissingKeyCb`
+    decryptionErrorCb?: string  // Global name of a callback (e.g. `MyApp.myDecryptionErrorCb`) of type ({ err: hscrypt.DecryptionError, cacheHit: boolean }) => void; see `hscrypt.DecryptionErrorCb`
+    scrubHash?: boolean         // When a password is pulled from the URL hash, remove it from the hash (default: true)
+    watchHash?: boolean         // When decryption doesn't initially succeed on a page (based on URL hash / localStorage cache), register a `window.hashchange` listener, and re-attempt decryption if a new URL hash value is entered (or navigated to)
+    injectConfigVar?: string    // Name of a variable injected into the page containing config values (typically a subset of the other fields in this `Config` object) to be passed to `hscrypt.inject`; default: `DEFAULT_INJECT_CONFIG_VAR` i.e. "HSCRYPT_CONFIG"
 }
 
 export interface FileCache {
@@ -85,6 +93,10 @@ export default class HscryptPlugin {
 
     protected get replaceConfig() {
         return this.config.replace || DEFAULT_REPLACE_CONFIG
+    }
+
+    protected get injectConfigVar() {
+        return this.config.injectConfigVar || DEFAULT_INJECT_CONFIG_VAR
     }
 
     protected get encryptedPath(): string {
@@ -182,13 +194,31 @@ export default class HscryptPlugin {
     ) {
         const hscryptTag = `<script src="${this.hscryptSrc}"></script>`
         let args = [
-            `'${this.encryptedPath}'`,
-            `window.location.hash.substring(1)`,
+            `src: '${this.encryptedPath}'`,
         ]
         if (iterations) {
-            args.push(iterations.toString())
+            args.push(`iterations: ${iterations}`)
         }
-        const injectTag = `<script>window.onload = () => hscrypt.inject(${args.join(', ')})</script>`  // TODO: rm `type="module"`?
+
+        const configKeys = [ 'cache', 'missingKeyCb', 'decryptionErrorCb', 'scrubHash', 'watchHash', ]
+        for (const k of configKeys) {
+            if (!(k in this.config)) continue
+            const v = this.config[k]
+            if (v === undefined) continue
+            if (typeof v === 'string') {
+                // There should not be untrusted data here (these are values from `this.config`), but perform a
+                // best-effort check anyway
+                if (v.indexOf('"') != -1) {
+                    throw new Error(`Invalid "inject" arg, ${k}: ${v}`)
+                }
+                args.push(`${k}: "${v}"`)
+            } else if (typeof v === 'boolean') {
+                args.push(`${k}: ${v}`)
+            }
+        }
+        const argsString = `{ ${args.join(", ")} }`
+        const injectConfigStmt = `var ${this.injectConfigVar} = ${argsString}`
+        const injectTag = `<script>window.onload = () => { ${injectConfigStmt}; hscrypt.inject(${this.injectConfigVar}) }</script>`
         const replaceValues = [hscryptTag].concat([
             injectTag,
             this.replaceConfig.target,
@@ -242,7 +272,7 @@ export default class HscryptPlugin {
 
             sources.forEach(() => {
                 // TODO: `source` unused; assumed to just be adding this.config.filename; should check/verify/simplify
-                //  this
+                // this
                 this.log(`process script; html before:\n${data.html}`)
                 data.html = this.addScript({
                     html: data.html,
@@ -253,11 +283,11 @@ export default class HscryptPlugin {
             })
 
             const dst = path.join(outputDir, this.hscryptSrc)
-            // TODO: await?
             if (fs.existsSync(dst)) {
                 this.log(`Already found ${dst}`)
             } else {
                 this.log(`Fetching ${this.hscrypt}`)
+                // TODO: await?
                 fetch(this.hscrypt)
                     .then((response: any) => response.text())
                     .then((source: any) => {
