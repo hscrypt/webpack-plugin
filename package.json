@@ -1,6 +1,6 @@
 {
   "name": "hscrypt-webpack-plugin",
-  "version": "0.0.2",
+  "version": "0.0.3-rc.0",
   "description": "Use `hscrypt` to encrypt a Javascript bundle built by Webpack and inject code into the page to fetch, decrypt, and inject the bundle (based on a decryption key provided as a URL fragment)",
   "main": "build/webpack-plugin.js",
   "types": "build/webpack-plugin.d.ts",
