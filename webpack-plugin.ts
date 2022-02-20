@@ -218,7 +218,7 @@ export default class HscryptPlugin {
             }
         }
         const argsString = `{ ${args.join(", ")} }`
-        const injectConfigStmt = `var ${this.injectConfigVar} = ${argsString}`
+        const injectConfigStmt = `window.${this.injectConfigVar} = ${argsString}`
         const injectTag = `<script>window.onload = () => { ${injectConfigStmt}; hscrypt.inject(${this.injectConfigVar}) }</script>`
         const replaceValues = [hscryptTag].concat([
             injectTag,
