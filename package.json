@@ -5,7 +5,7 @@
   "main": "build/webpack-plugin.js",
   "types": "build/webpack-plugin.d.ts",
   "dependencies": {
-    "hscrypt": "file:../js/hscrypt-0.0.2.tgz",
+    "hscrypt": "^0.0.3-rc.1",
     "lodash": "^4.17.15",
     "node-fetch-commonjs": "^3.1.1",
     "tslib": "^2.3.1"

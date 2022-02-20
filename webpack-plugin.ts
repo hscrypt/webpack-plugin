@@ -46,8 +46,11 @@ export interface ReplaceConfig {
 export const DEFAULT_REPLACE_CONFIG: ReplaceConfig = {
     target: '</head>',
 }
+
+export const HSCRYPT_VERSION = JSON.parse(fs.readFileSync('../node_modules/hscrypt/package.json').toString()).version
+
 export const DEFAULT_OUT_FILENAME = 'index.html'
-export const DEFAULT_HSCRYPT = 'https://raw.githubusercontent.com/hscrypt/js/5782bb0d93d7c8c50e3c8d001a7870a8d545fd8f/dist/src/hscrypt.mjs'
+export const DEFAULT_HSCRYPT = `https://raw.githubusercontent.com/hscrypt/js/v${HSCRYPT_VERSION}/dist/src/hscrypt.mjs`
 export const DEFAULT_HSCRYPT_SRC = './hscrypt.mjs'
 export const DEFAULT_INJECT_CONFIG_VAR = 'HSCRYPT_CONFIG'
 
