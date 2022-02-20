@@ -48,14 +48,15 @@ export const DEFAULT_REPLACE_CONFIG: ReplaceConfig = {
 
 export const DEFAULT_OUT_FILENAME = 'index.html'
 export const DEFAULT_HSCRYPT_SRC = '../node_modules/hscrypt/dist/src/hscrypt.mjs'
+export const DEFAULT_HSCRYPT_DST = 'hscrypt.mjs'
 export const DEFAULT_INJECT_CONFIG_VAR = 'HSCRYPT_CONFIG'
 
 export interface Config {
     [key: string]: any
     filename: string            // JS bundle to encrypt/inject/decrypt
     pswd: string                // Encryption/Decryption key; provided to the plugin in webpack.config.js at build time, and by users as a URL "hash" at page load time
-    hscrypt?: string            // If an `hscrypt.mjs` isn't found at `hscryptSrc`, fetch one from this URL
     hscryptSrc?: string         // Look for `hscrypt.mjs` locally at this path
+    hscryptDst?: string         // Copy `hscrypt.mjs` from `hscryptSrc` to this location (which will be used as the `<script src="…">` in the injected script (default: `hscrypt.mjs`)
     path?: string               // Output directory to look for `filename` in (e.g. `dist`)
     debug?: boolean | number    // Toggle debug logging
     replace?: ReplaceConfig     // Where to inject the hscrypt "injection" <script> tag (default: just before "</head>"
@@ -108,6 +109,10 @@ export default class HscryptPlugin {
 
     protected get hscryptSrc() {
         return this.config.hscryptSrc || DEFAULT_HSCRYPT_SRC
+    }
+
+    protected get hscryptDst() {
+        return this.config.hscryptDst || DEFAULT_HSCRYPT_DST
     }
 
     protected encrypt({ source, pswd, iterations, }: {
@@ -188,7 +193,7 @@ export default class HscryptPlugin {
             iterations?: number
         }
     ) {
-        const hscryptTag = `<script src="${this.hscryptSrc}"></script>`
+        const hscryptTag = `<script src="${this.hscryptDst}"></script>`
         let args = [
             `src: '${this.encryptedPath}'`,
         ]
@@ -278,11 +283,13 @@ export default class HscryptPlugin {
                 this.log(`process script; html after:\n${data.html}`)
             })
 
-            const dst = path.join(outputDir, this.hscryptSrc)
-            if (fs.existsSync(dst)) {
-                this.log(`Found hscrypt.mjs at ${dst}`)
+            const hscryptSrc = path.join(outputDir, this.hscryptSrc)
+            const hscryptDst = path.join(outputDir, this.hscryptDst)
+            if (fs.existsSync(hscryptSrc)) {
+                this.log(`Found hscrypt.mjs at ${hscryptSrc}; copying to ${hscryptDst}`)
+                fs.copyFileSync(hscryptSrc, hscryptDst)
             } else {
-                throw new Error(`Couldn't find hscrypt.mjs at ${dst}`)
+                throw new Error(`Couldn't find hscrypt.mjs at ${hscryptSrc}`)
             }
         }
     }
