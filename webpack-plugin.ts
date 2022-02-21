@@ -271,7 +271,7 @@ export default class HscryptPlugin {
 
     private process(data: BeforeEmitData, outputDir: string) {
         // check if current html needs to be inlined
-        this.log("process:", data)
+        this.log("process:", data, "outputDir:", outputDir)
         if (data.outputName == this.outFilename) {
             const sources = this.scriptMap.get(data.plugin) || []
 
