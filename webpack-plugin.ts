@@ -33,7 +33,7 @@ interface HTMLWebpackPluginHooks {
     beforeEmit: SyncHook<BeforeEmitData>
 }
 
-type Source = string | Buffer
+type Source = hscrypt.Source
 
 // TODO: parameterize this as `{head,body} x {beginning,end}`, or as an element id or selector
 export interface ReplaceConfig {
@@ -47,7 +47,7 @@ export const DEFAULT_REPLACE_CONFIG: ReplaceConfig = {
 }
 
 export const DEFAULT_OUT_FILENAME = 'index.html'
-export const DEFAULT_HSCRYPT_SRC = '../node_modules/hscrypt/dist/src/hscrypt.mjs'
+export const DEFAULT_HSCRYPT_SRC = 'hscrypt/dist/src/hscrypt.mjs'
 export const DEFAULT_HSCRYPT_DST = 'hscrypt.mjs'
 export const HSCRYPT_CONFIG_VAR = hscrypt.HSCRYPT_CONFIG_VAR
 
@@ -56,7 +56,7 @@ export interface Config {
     filename: string              // JS bundle to encrypt/inject/decrypt
     pswd: string                  // Encryption/Decryption key; provided to the plugin in webpack.config.js at build time, and by users as a URL "hash" at page load time
     injectHscryptMjs?: boolean    // Default: true; optionally disable injecting hscrypt.mjs (e.g. if the non-encrypted wrapper bundle includes hscrypt already)
-    hscryptSrc?: string           // Look for `hscrypt.mjs` locally at this path
+    hscryptSrc?: string           // Look for a copy of `hscrypt.mjs` locally at this path, relative `path`; by default, will try to find it in node_modules/hscrypt
     hscryptDst?: string           // Copy `hscrypt.mjs` from `hscryptSrc` to this location (which will be used as the `<script src="…">` in the injected script). Default: `hscrypt.mjs`
     path?: string                 // Output directory to look for `filename` in (e.g. `dist`)
     debug?: boolean | number      // Toggle debug logging
@@ -108,8 +108,35 @@ export default class HscryptPlugin {
         return this.config.injectHscryptMjs === undefined || this.config.injectHscryptMjs
     }
 
-    protected get hscryptSrc() {
-        return this.config.hscryptSrc || DEFAULT_HSCRYPT_SRC
+    protected findAncestorNamed(cur: string, name: string): string | null {
+        while (path.basename(cur) != name) {
+            const parent = path.dirname(cur)
+            if (cur == parent) {
+                return null
+            }
+            cur = parent
+        }
+        return cur
+    }
+
+    protected getHscryptSrc(outputDir?: string) {
+        if (this.config.hscryptSrc) return this.config.hscryptSrc
+
+        let node_modules = this.findAncestorNamed(__dirname, 'node_modules')
+        if (node_modules) {
+            this.log(`Found node_modules via cur dir ${__dirname}: ${node_modules}`)
+        } else {
+            if (outputDir) {
+                node_modules = this.findAncestorNamed(outputDir, 'node_modules')
+                if (node_modules) {
+                    this.log(`Found node_modules via outputDir ${outputDir}: ${node_modules}`)
+                }
+            }
+        }
+        if (!node_modules) {
+            throw new Error(`Couldn't find a node_modules directory in ancestry of ${__dirname}, ${outputDir}`)
+        }
+        return path.join(node_modules, DEFAULT_HSCRYPT_SRC)
     }
 
     protected get hscryptDst() {
@@ -271,7 +298,7 @@ export default class HscryptPlugin {
 
     private process(data: BeforeEmitData, outputDir: string) {
         // check if current html needs to be inlined
-        this.log("process:", data, "outputDir:", outputDir)
+        this.log("process:", data, "outputDir:", outputDir, "curdir:", __dirname)
         if (data.outputName == this.outFilename) {
             const sources = this.scriptMap.get(data.plugin) || []
 
@@ -287,7 +314,7 @@ export default class HscryptPlugin {
             })
 
             if (this.injectHscryptMjs) {
-                const hscryptSrc = path.join(outputDir, this.hscryptSrc)
+                const hscryptSrc = this.getHscryptSrc(outputDir)
                 const hscryptDst = path.join(outputDir, this.hscryptDst)
                 if (fs.existsSync(hscryptSrc)) {
                     this.log(`Found hscrypt.mjs at ${hscryptSrc}; copying to ${hscryptDst}`)

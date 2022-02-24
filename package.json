@@ -8,7 +8,7 @@
     "build"
   ],
   "dependencies": {
-    "hscrypt": "^0.0.3-rc.4",
+    "hscrypt": "file:../js/hscrypt-0.0.3-rc.4.tgz",
     "lodash": "^4.17.15",
     "tslib": "^2.3.1"
   },
